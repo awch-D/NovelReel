@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useProjectStore } from "@/stores/project";
 import { api } from "@/services/api";
@@ -11,7 +11,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Plus, Trash2, Upload, FolderOpen } from "lucide-react";
+import { Plus, Trash2, Upload, FolderOpen, RotateCcw, Trash } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Project } from "@/types";
 
@@ -26,6 +26,13 @@ export function ProjectList() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+  const [trashOpen, setTrashOpen] = useState(false);
+  const [trashItems, setTrashItems] = useState<{ project_id: string; name: string; deleted_at?: string }[]>([]);
+  const [permanentDeleteTarget, setPermanentDeleteTarget] = useState<string | null>(null);
+
+  const loadTrash = useCallback(() => {
+    api.listTrash().then(setTrashItems).catch(() => {});
+  }, []);
 
   // Load projects from backend on mount
   useState(() => {
@@ -43,6 +50,7 @@ export function ProjectList() {
         }))
       );
     });
+    loadTrash();
   });
 
   const handleCreate = async () => {
@@ -74,6 +82,37 @@ export function ProjectList() {
     await api.deleteProject(id);
     removeProject(id);
     setDeleteTarget(null);
+    loadTrash();
+  };
+
+  const handleRestore = async (id: string) => {
+    await api.restoreProject(id);
+    loadTrash();
+    // 重新加载项目列表
+    const list = await api.listProjects();
+    setProjects(
+      list.map((p) => ({
+        project_id: p.project_id,
+        name: p.name,
+        status: (p.status || "created") as Project["status"],
+        current_step: null,
+        progress: 0,
+        error: null,
+        created_at: p.created_at,
+        cover: p.cover,
+      }))
+    );
+  };
+
+  const handlePermanentDelete = async (id: string) => {
+    await api.permanentDelete(id);
+    setPermanentDeleteTarget(null);
+    loadTrash();
+  };
+
+  const handleEmptyTrash = async () => {
+    await api.emptyTrash();
+    loadTrash();
   };
 
   const handleRename = (id: string) => {
@@ -112,10 +151,25 @@ export function ProjectList() {
             <h1 className="text-2xl font-bold">我的项目</h1>
             <p className="text-sm text-muted-foreground mt-1">管理你的小说转漫剧项目</p>
           </div>
-          <Button onClick={() => setDialogOpen(true)}>
-            <Plus className="w-4 h-4 mr-2" />
-            新建项目
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => { loadTrash(); setTrashOpen(true); }}
+              className="relative"
+            >
+              <Trash className="w-4 h-4 mr-2" />
+              回收站
+              {trashItems.length > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-destructive text-destructive-foreground text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                  {trashItems.length}
+                </span>
+              )}
+            </Button>
+            <Button onClick={() => setDialogOpen(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              新建项目
+            </Button>
+          </div>
         </div>
 
         {projects.length === 0 ? (
@@ -250,8 +304,8 @@ export function ProjectList() {
       <Dialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>确认删除</DialogTitle>
-            <DialogDescription>删除后无法恢复，确定要删除这个项目吗？</DialogDescription>
+            <DialogTitle>移到回收站</DialogTitle>
+            <DialogDescription>项目将移到回收站，你可以随时恢复。确定要删除吗？</DialogDescription>
           </DialogHeader>
           <div className="flex gap-3 justify-end pt-2">
             <Button variant="outline" onClick={() => setDeleteTarget(null)}>
@@ -259,6 +313,81 @@ export function ProjectList() {
             </Button>
             <Button variant="destructive" onClick={() => deleteTarget && handleDelete(deleteTarget)}>
               删除
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Trash Dialog */}
+      <Dialog open={trashOpen} onOpenChange={setTrashOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>回收站</DialogTitle>
+            <DialogDescription>已删除的项目可以恢复或永久删除</DialogDescription>
+          </DialogHeader>
+          {trashItems.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Trash className="w-10 h-10 mx-auto mb-2 opacity-30" />
+              <p className="text-sm">回收站为空</p>
+            </div>
+          ) : (
+            <div className="space-y-2 max-h-80 overflow-auto">
+              {trashItems.map((item) => (
+                <div
+                  key={item.project_id}
+                  className="flex items-center justify-between p-3 rounded-lg border border-border bg-muted/30"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium truncate">{item.name}</p>
+                    {item.deleted_at && (
+                      <p className="text-xs text-muted-foreground">
+                        删除于 {new Date(item.deleted_at).toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 ml-3">
+                    <button
+                      onClick={() => handleRestore(item.project_id)}
+                      className="p-1.5 rounded hover:bg-primary/20 transition-colors"
+                      title="恢复"
+                    >
+                      <RotateCcw className="w-4 h-4 text-primary" />
+                    </button>
+                    <button
+                      onClick={() => setPermanentDeleteTarget(item.project_id)}
+                      className="p-1.5 rounded hover:bg-destructive/20 transition-colors"
+                      title="永久删除"
+                    >
+                      <Trash2 className="w-4 h-4 text-destructive" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {trashItems.length > 0 && (
+            <div className="flex justify-end pt-2">
+              <Button variant="destructive" size="sm" onClick={handleEmptyTrash}>
+                清空回收站
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Permanent Delete Confirmation */}
+      <Dialog open={!!permanentDeleteTarget} onOpenChange={() => setPermanentDeleteTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>永久删除</DialogTitle>
+            <DialogDescription>此操作不可恢复，确定要永久删除这个项目吗？</DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-3 justify-end pt-2">
+            <Button variant="outline" onClick={() => setPermanentDeleteTarget(null)}>
+              取消
+            </Button>
+            <Button variant="destructive" onClick={() => permanentDeleteTarget && handlePermanentDelete(permanentDeleteTarget)}>
+              永久删除
             </Button>
           </div>
         </DialogContent>

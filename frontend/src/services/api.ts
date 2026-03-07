@@ -48,6 +48,23 @@ export const api = {
     await fetch(`${API_BASE}/projects/${id}`, { method: "DELETE" });
   },
 
+  // Trash
+  async listTrash(): Promise<{ project_id: string; name: string; deleted_at?: string }[]> {
+    return request(`/trash`);
+  },
+
+  async restoreProject(id: string): Promise<{ status: string; project_id: string }> {
+    return request(`/trash/${id}/restore`, { method: "POST" });
+  },
+
+  async permanentDelete(id: string): Promise<void> {
+    await fetch(`${API_BASE}/trash/${id}`, { method: "DELETE" });
+  },
+
+  async emptyTrash(): Promise<void> {
+    await fetch(`${API_BASE}/trash`, { method: "DELETE" });
+  },
+
   // Pipeline
   async runPipeline(projectId: string, settings?: Record<string, unknown>) {
     return request<{ message: string }>(`/projects/${projectId}/run`, {

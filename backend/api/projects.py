@@ -23,7 +23,7 @@ async def list_projects():
     if not settings.PROJECTS_DIR.exists():
         return JSONResponse([])
     for d in sorted(settings.PROJECTS_DIR.iterdir(), reverse=True):
-        if not d.is_dir():
+        if not d.is_dir() or d.name == ".trash":
             continue
         status_path = d / "status.json"
         if not status_path.exists():
@@ -82,7 +82,78 @@ async def create_project(file: List[UploadFile] = None, name: str = Form("untitl
 @router.delete("/projects/{project_id}")
 async def delete_project(project_id: str):
     project = project_dir(project_id)
-    shutil.rmtree(project)
+    trash_dir = settings.PROJECTS_DIR / ".trash"
+    trash_dir.mkdir(exist_ok=True)
+    dest = trash_dir / project_id
+
+    # 写入删除时间
+    status_path = project / "status.json"
+    if status_path.exists():
+        status = json.loads(status_path.read_text())
+        status["deleted_at"] = datetime.now().isoformat()
+        status_path.write_text(json.dumps(status, ensure_ascii=False, indent=2))
+
+    shutil.move(str(project), str(dest))
+    return Response(status_code=204)
+
+
+@router.get("/trash")
+async def list_trash():
+    trash_dir = settings.PROJECTS_DIR / ".trash"
+    if not trash_dir.exists():
+        return JSONResponse([])
+    items = []
+    for d in sorted(trash_dir.iterdir(), reverse=True):
+        if not d.is_dir():
+            continue
+        status_path = d / "status.json"
+        if not status_path.exists():
+            continue
+        status = json.loads(status_path.read_text())
+        items.append({
+            "project_id": d.name,
+            "name": status.get("name", d.name),
+            "deleted_at": status.get("deleted_at"),
+        })
+    return JSONResponse(items)
+
+
+@router.post("/trash/{project_id}/restore")
+async def restore_project(project_id: str):
+    trash_dir = settings.PROJECTS_DIR / ".trash"
+    src = trash_dir / project_id
+    if not src.exists():
+        raise HTTPException(404, "Project not found in trash")
+    dest = settings.PROJECTS_DIR / project_id
+
+    # 清除 deleted_at
+    status_path = src / "status.json"
+    if status_path.exists():
+        status = json.loads(status_path.read_text())
+        status.pop("deleted_at", None)
+        status_path.write_text(json.dumps(status, ensure_ascii=False, indent=2))
+
+    shutil.move(str(src), str(dest))
+    return {"status": "restored", "project_id": project_id}
+
+
+@router.delete("/trash/{project_id}")
+async def permanent_delete(project_id: str):
+    trash_dir = settings.PROJECTS_DIR / ".trash"
+    target = trash_dir / project_id
+    if not target.exists():
+        raise HTTPException(404, "Project not found in trash")
+    shutil.rmtree(target)
+    return Response(status_code=204)
+
+
+@router.delete("/trash")
+async def empty_trash():
+    trash_dir = settings.PROJECTS_DIR / ".trash"
+    if trash_dir.exists():
+        for d in trash_dir.iterdir():
+            if d.is_dir():
+                shutil.rmtree(d)
     return Response(status_code=204)
 
 
