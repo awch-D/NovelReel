@@ -39,6 +39,7 @@ export function ProjectList() {
           progress: 0,
           error: null,
           created_at: p.created_at,
+          cover: p.cover,
         }))
       );
     });
@@ -136,8 +137,12 @@ export function ProjectList() {
                 onClick={() => navigate(`/projects/${p.project_id}`)}
               >
                 {/* Cover */}
-                <div className="aspect-video bg-muted/30 rounded-t-lg flex items-center justify-center">
-                  <FileTextIcon className="w-10 h-10 text-muted-foreground/30" />
+                <div className="aspect-video bg-muted/30 rounded-t-lg flex items-center justify-center overflow-hidden">
+                  {p.cover ? (
+                    <img src={p.cover} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                  ) : (
+                    <FileTextIcon className="w-10 h-10 text-muted-foreground/30" />
+                  )}
                 </div>
 
                 <div className="p-4">

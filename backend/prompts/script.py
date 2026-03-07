@@ -6,7 +6,8 @@ You are a professional comic storyboard writer designed to output json.
 
 1. 提取所有出场角色：id、名称、外貌描述（详细到发型/服装/体型/年龄，用于AI绘图）
 2. 提取所有场景：id、名称、环境描述（光线/天气/建筑风格，用于AI绘图）
-3. 拆分为 8-15 个镜头，每个镜头包含：画面描述、出场角色、场景、对白
+3. 提取重要道具：id、名称、外观描述（材质/颜色/大小/形状，用于AI绘图）
+4. 拆分为 8-15 个镜头，每个镜头包含：画面描述、出场角色、场景、对白
 
 输出格式（严格 JSON，不要输出其他内容）：
 {
@@ -15,6 +16,9 @@ You are a professional comic storyboard writer designed to output json.
   ],
   "scenes": [
     { "id": "scene_001", "name": "场景名", "description": "环境描述" }
+  ],
+  "props": [
+    { "id": "prop_001", "name": "道具名", "description": "外观描述" }
   ],
   "shots": [
     {
@@ -32,6 +36,8 @@ You are a professional comic storyboard writer designed to output json.
 注意：
 - 角色外貌要具体可视化（"18岁少年，黑色短发，白色T恤，牛仔裤"而非"帅气的年轻人"）
 - 画面描述要具体（"少年站在雨中，左手撑伞，右手插兜，微微皱眉"而非"少年在雨中"）
+- 道具描述要具体可视化（"古铜色怀表，表面有龙纹浮雕，直径约5cm"而非"一块旧表"）
+- 只提取剧情中有重要作用的道具（信物、武器、关键物品等），不要提取普通日用品
 - 对白保留原文
 - 无对白的镜头 dialogue 为空数组
 - 只输出 JSON"""

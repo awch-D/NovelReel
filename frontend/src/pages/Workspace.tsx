@@ -10,6 +10,8 @@ import { ScriptPanel } from "./panels/ScriptPanel";
 import { AssetsPanel } from "./panels/AssetsPanel";
 import { FramesPanel } from "./panels/FramesPanel";
 import { SettingsPanel } from "./panels/SettingsPanel";
+import { VoicePanel } from "./panels/VoicePanel";
+import { SynthesisPanel } from "./panels/SynthesisPanel";
 import { Loader2 } from "lucide-react";
 import type { Episode } from "@/types";
 
@@ -18,12 +20,14 @@ const PANELS: Record<string, React.FC> = {
   script: ScriptPanel,
   assets: AssetsPanel,
   frames: FramesPanel,
+  voice: VoicePanel,
+  synthesis: SynthesisPanel,
   settings: SettingsPanel,
 };
 
 export function Workspace() {
   const { id } = useParams<{ id: string }>();
-  const { currentProject, setCurrentProject, activePanel, setActivePanel, setScriptData, setCharacters, setSceneAssets, setAnalysis, setOutlines } = useProjectStore();
+  const { currentProject, setCurrentProject, activePanel, setActivePanel, setScriptData, setCharacters, setSceneAssets, setProps, setAnalysis, setOutlines } = useProjectStore();
   useProject();
 
   // 加载项目状态
@@ -43,8 +47,24 @@ export function Workspace() {
       // fallback
     });
 
+    // 切换项目时清空旧数据
+    setScriptData(null);
+    setCharacters([]);
+    setSceneAssets([]);
+    setProps([]);
+    setAnalysis(null);
+    setOutlines([]);
     setActivePanel("novel");
-    return () => setCurrentProject(null);
+
+    return () => {
+      setCurrentProject(null);
+      setScriptData(null);
+      setCharacters([]);
+      setSceneAssets([]);
+      setProps([]);
+      setAnalysis(null);
+      setOutlines([]);
+    };
   }, [id]);
 
   // status=completed 时自动加载 script + characters + scenes
@@ -62,6 +82,10 @@ export function Workspace() {
 
     api.getSceneAssets(pid)
       .then((scenes) => setSceneAssets(scenes))
+      .catch(() => {});
+
+    api.getProps(pid)
+      .then((data) => setProps(data))
       .catch(() => {});
 
     api.getAnalysis(pid)

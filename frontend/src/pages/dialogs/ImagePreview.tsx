@@ -1,17 +1,19 @@
 import { useEffect, useCallback } from "react";
-import { X, ChevronLeft, ChevronRight } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, RefreshCw, Flag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Shot } from "@/types";
 
 interface ImagePreviewProps {
-  images: { id: string; src: string; label?: string }[];
+  images: { id: string; src: string; label?: string; status?: string }[];
   shots: Shot[];
   currentIndex: number;
   onClose: () => void;
   onNavigate: (index: number) => void;
+  onRegenerate?: (shotId: string) => void;
+  onMark?: (shotId: string) => void;
 }
 
-export function ImagePreview({ images, shots, currentIndex, onClose, onNavigate }: ImagePreviewProps) {
+export function ImagePreview({ images, shots, currentIndex, onClose, onNavigate, onRegenerate, onMark }: ImagePreviewProps) {
   const current = images[currentIndex];
   const shot = shots[currentIndex];
   const hasPrev = currentIndex > 0;
@@ -74,13 +76,25 @@ export function ImagePreview({ images, shots, currentIndex, onClose, onNavigate 
           )}
         </div>
 
-        {/* Info */}
-        <div className="mt-3 text-white/80 space-y-1">
+        {/* Info + Actions */}
+        <div className="mt-3 text-white/80 space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-sm font-mono">{current.label}</span>
-            <span className="text-xs text-white/50">
-              {currentIndex + 1} / {images.length}
-            </span>
+            <div className="flex items-center gap-2">
+              {onRegenerate && current.id && (
+                <Button size="sm" variant="ghost" className="text-xs h-7 text-white/70 hover:text-white" onClick={() => onRegenerate(current.id)}>
+                  <RefreshCw className="w-3 h-3 mr-1" />重新生成
+                </Button>
+              )}
+              {onMark && current.id && (
+                <Button size="sm" variant="ghost" className="text-xs h-7 text-white/70 hover:text-white" onClick={() => onMark(current.id)}>
+                  <Flag className="w-3 h-3 mr-1" />{current.status === "marked" ? "取消标记" : "标记"}
+                </Button>
+              )}
+              <span className="text-xs text-white/50">
+                {currentIndex + 1} / {images.length}
+              </span>
+            </div>
           </div>
           {shot && (
             <>

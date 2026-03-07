@@ -1,7 +1,7 @@
 import { create } from "zustand";
-import type { Project, ProjectSettings, Character, SceneAsset, StoryAnalysis, EpisodeOutline, Chapter, Episode } from "@/types";
-import { DEFAULT_SETTINGS } from "@/types";
-import { runMockPipeline, mockScriptData, mockCharacters, mockSceneAssets, mockAnalysis, mockOutlines } from "@/services/mock";
+import type { Project, ProjectSettings, SystemSettings, Character, SceneAsset, PropAsset, StoryAnalysis, EpisodeOutline, Chapter, Episode } from "@/types";
+import { DEFAULT_SETTINGS, DEFAULT_SYSTEM_SETTINGS } from "@/types";
+import { api } from "@/services/api";
 
 interface ProjectStore {
   // Project list
@@ -35,6 +35,13 @@ interface ProjectStore {
   settings: ProjectSettings;
   updateSettings: (settings: Partial<ProjectSettings>) => void;
 
+  // System settings (persisted to backend)
+  systemSettings: SystemSettings;
+  systemSettingsLoaded: boolean;
+  loadSystemSettings: () => Promise<void>;
+  updateSystemSettings: (settings: Partial<SystemSettings>) => void;
+  saveSystemSettings: () => Promise<void>;
+
   // Extended state
   chapters: Chapter[];
   setChapters: (chapters: Chapter[]) => void;
@@ -42,16 +49,15 @@ interface ProjectStore {
   setCharacters: (characters: Character[]) => void;
   sceneAssets: SceneAsset[];
   setSceneAssets: (assets: SceneAsset[]) => void;
+  props: PropAsset[];
+  setProps: (props: PropAsset[]) => void;
   analysis: StoryAnalysis | null;
   setAnalysis: (analysis: StoryAnalysis | null) => void;
   outlines: EpisodeOutline[];
   setOutlines: (outlines: EpisodeOutline[]) => void;
-
-  // Mock pipeline
-  startMockPipeline: () => void;
 }
 
-export const useProjectStore = create<ProjectStore>((set, get) => ({
+export const useProjectStore = create<ProjectStore>((set) => ({
   projects: [],
   setProjects: (projects) => set({ projects }),
   addProject: (project) => set((s) => ({ projects: [project, ...s.projects] })),
@@ -97,6 +103,27 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       return { settings: next };
     }),
 
+  systemSettings: { ...DEFAULT_SYSTEM_SETTINGS },
+  systemSettingsLoaded: false,
+  loadSystemSettings: async () => {
+    try {
+      const data = await api.getSystemSettings();
+      set({ systemSettings: { ...DEFAULT_SYSTEM_SETTINGS, ...data }, systemSettingsLoaded: true });
+    } catch {
+      set({ systemSettingsLoaded: true });
+    }
+  },
+  updateSystemSettings: (partial) =>
+    set((s) => ({ systemSettings: { ...s.systemSettings, ...partial } })),
+  saveSystemSettings: async () => {
+    const s = useProjectStore.getState().systemSettings;
+    try {
+      await api.updateSystemSettings(s);
+    } catch {
+      // silent
+    }
+  },
+
   // Extended state
   chapters: [],
   setChapters: (chapters) => set({ chapters }),
@@ -104,41 +131,10 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   setCharacters: (characters) => set({ characters }),
   sceneAssets: [],
   setSceneAssets: (assets) => set({ sceneAssets: assets }),
+  props: [],
+  setProps: (props) => set({ props }),
   analysis: null,
   setAnalysis: (analysis) => set({ analysis }),
   outlines: [],
   setOutlines: (outlines) => set({ outlines }),
-
-  // Mock pipeline
-  startMockPipeline: () => {
-    const { currentProject } = get();
-    if (!currentProject) return;
-
-    set({
-      statusBarExpanded: true,
-      currentProject: { ...currentProject, status: "running", progress: 0, current_step: "准备中..." },
-    });
-
-    runMockPipeline(
-      (step, progress) => {
-        const cp = get().currentProject;
-        if (!cp) return;
-        set({
-          currentProject: { ...cp, status: "running", current_step: step, progress },
-        });
-      },
-      () => {
-        const cp = get().currentProject;
-        if (!cp) return;
-        set({
-          currentProject: { ...cp, status: "completed", current_step: null, progress: 100 },
-          scriptData: mockScriptData,
-          characters: mockCharacters,
-          sceneAssets: mockSceneAssets,
-          analysis: mockAnalysis,
-          outlines: mockOutlines,
-        });
-      },
-    );
-  },
 }));

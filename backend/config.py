@@ -13,6 +13,10 @@ class Settings(BaseSettings):
     JIMENG_ACCESS_KEY_ID: str = ""
     JIMENG_SECRET_ACCESS_KEY: str = ""
     PROJECTS_DIR: Path = Path("../projects")
+    BGM_DIR: Path = Path("resources/bgm")
+    FFMPEG_PATH: str = "ffmpeg"
+    TTS_BASE_URL: str = "http://localhost:9880"
+    SADTALKER_BASE_URL: str = "http://localhost:7860"
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 

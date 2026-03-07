@@ -13,18 +13,21 @@ import {
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 
-const NAV_ITEMS = [
-  { id: "novel", label: "小说管理", icon: FileText },
-  { id: "script", label: "剧本", icon: ClipboardList },
-  { id: "assets", label: "资产库", icon: Palette },
-  { id: "frames", label: "分镜", icon: Image },
-  { id: "voice", label: "配音", icon: Mic, disabled: true },
-  { id: "synthesis", label: "合成", icon: Film, disabled: true },
-  { id: "settings", label: "项目设置", icon: Settings },
-];
-
 export function Sidebar() {
-  const { activePanel, setActivePanel, sidebarExpanded, toggleSidebar } = useProjectStore();
+  const { activePanel, setActivePanel, sidebarExpanded, toggleSidebar, currentProject, scriptData } = useProjectStore();
+
+  const hasScript = !!scriptData;
+  const isNotCreated = currentProject?.status !== "created";
+
+  const NAV_ITEMS = [
+    { id: "novel", label: "小说管理", icon: FileText, disabled: false, tooltip: "" },
+    { id: "script", label: "剧本", icon: ClipboardList, disabled: !isNotCreated, tooltip: "需要先上传小说并运行" },
+    { id: "assets", label: "资产库", icon: Palette, disabled: !hasScript, tooltip: "需要先生成剧本" },
+    { id: "frames", label: "分镜", icon: Image, disabled: !hasScript, tooltip: "需要先生成剧本" },
+    { id: "voice", label: "配音", icon: Mic, disabled: !hasScript, tooltip: "需要先生成剧本" },
+    { id: "synthesis", label: "合成", icon: Film, disabled: !hasScript, tooltip: "需要先生成剧本" },
+    { id: "settings", label: "项目设置", icon: Settings, disabled: false, tooltip: "" },
+  ];
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -59,19 +62,18 @@ export function Sidebar() {
                 {sidebarExpanded && (
                   <span className="truncate">
                     {item.label}
-                    {item.disabled && (
-                      <span className="text-xs text-muted-foreground ml-1">(后续)</span>
-                    )}
                   </span>
                 )}
               </button>
             );
 
-            if (!sidebarExpanded) {
+            if (!sidebarExpanded || (item.disabled && item.tooltip)) {
               return (
                 <Tooltip key={item.id}>
                   <TooltipTrigger asChild>{button}</TooltipTrigger>
-                  <TooltipContent side="right">{item.label}</TooltipContent>
+                  <TooltipContent side="right">
+                    {item.disabled && item.tooltip ? item.tooltip : item.label}
+                  </TooltipContent>
                 </Tooltip>
               );
             }
