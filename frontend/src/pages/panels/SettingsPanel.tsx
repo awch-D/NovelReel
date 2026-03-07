@@ -458,6 +458,7 @@ function SecretInput({
   className?: string;
 }) {
   const [visible, setVisible] = useState(false);
+  const isMasked = value.includes("****");
 
   return (
     <div className={`relative ${className}`}>
@@ -465,11 +466,15 @@ function SecretInput({
         className="pr-9 w-full font-mono text-sm"
         type="text"
         placeholder={placeholder}
-        value={visible ? value : (value ? maskSecret(value) : "")}
+        value={visible ? value : (value ? (isMasked ? value : maskSecret(value)) : "")}
         onChange={(e) => {
           if (visible) onChange(e.target.value);
         }}
-        onFocus={() => setVisible(true)}
+        onFocus={() => {
+          setVisible(true);
+          // 后端返回的掩码值，focus 时清空让用户输入新值
+          if (isMasked) onChange("");
+        }}
       />
       {value && (
         <button

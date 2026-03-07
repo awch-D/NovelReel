@@ -57,13 +57,20 @@ async def create_project(file: List[UploadFile] = None, name: str = Form("untitl
     files = file or []
     if not files:
         raise HTTPException(400, "At least one file is required")
+    if len(files) > 20:
+        raise HTTPException(400, "Too many files (max 20)")
 
     # Save originals and merge
     novels_dir = project / "novels"
     novels_dir.mkdir(exist_ok=True)
     merged = []
     for i, f in enumerate(files):
+        ext = (f.filename or "").rsplit(".", 1)[-1].lower() if f.filename else ""
+        if ext != "txt":
+            raise HTTPException(400, f"Only .txt files allowed, got: {f.filename}")
         content = await f.read()
+        if len(content) > 10 * 1024 * 1024:
+            raise HTTPException(400, f"File too large: {f.filename} (max 10MB)")
         (novels_dir / f"{i:03d}_{f.filename}").write_bytes(content)
         try:
             merged.append(content.decode("utf-8"))

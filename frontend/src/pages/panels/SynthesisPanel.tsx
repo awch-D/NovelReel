@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { toast } from "sonner";
 import { useProjectStore } from "@/stores/project";
 import { api } from "@/services/api";
 import { Button } from "@/components/ui/button";
@@ -72,7 +73,8 @@ export function SynthesisPanel() {
         }
       }, 3000);
       setTimeout(() => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; } setAssembling(false); }, 300000);
-    } catch {
+    } catch (err) {
+      toast.error("合成失败: " + (err as Error).message);
       setAssembling(false);
     }
   };
@@ -92,7 +94,8 @@ export function SynthesisPanel() {
         }
       }, 5000);
       setTimeout(() => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; } setAssembling(false); }, 600000);
-    } catch {
+    } catch (err) {
+      toast.error("批量合成失败: " + (err as Error).message);
       setAssembling(false);
     }
   };
@@ -104,11 +107,15 @@ export function SynthesisPanel() {
     input.onchange = async () => {
       const file = input.files?.[0];
       if (!file || !pid) return;
-      const res = await api.uploadBGM(pid, file);
-      setSettings((s) => ({ ...s, bgm: res.path }));
-      await api.updateSynthesisSettings(pid, { ...settings, bgm: res.path });
-      const list = await api.listBGM(pid);
-      setBgmList(list);
+      try {
+        const res = await api.uploadBGM(pid, file);
+        setSettings((s) => ({ ...s, bgm: res.path }));
+        await api.updateSynthesisSettings(pid, { ...settings, bgm: res.path });
+        const list = await api.listBGM(pid);
+        setBgmList(list);
+      } catch (err) {
+        toast.error("上传 BGM 失败: " + (err as Error).message);
+      }
     };
     input.click();
   };

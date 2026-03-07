@@ -9,6 +9,7 @@ from clients.comfyui import ImageClient
 from utils.chapter_split import split_chapters
 from utils.json_repair import repair_json
 from utils.log_helper import append_log
+from utils.project_helpers import get_effective_config
 from prompts.script import build_script_prompt, build_sd_prompt
 
 logger = logging.getLogger(__name__)
@@ -57,20 +58,21 @@ async def run_pipeline(project_id: str):
     if settings_path.exists():
         proj_settings = json.loads(settings_path.read_text())
 
+    cfg = get_effective_config(project_id)
+
     llm = LLMClient(
-        proj_settings.get("llm_base_url") or settings.LLM_BASE_URL,
-        proj_settings.get("llm_api_key") or settings.LLM_API_KEY,
-        proj_settings.get("llm_model") or settings.LLM_MODEL,
+        cfg.get("llm_base_url", ""),
+        cfg.get("llm_api_key", ""),
+        cfg.get("llm_model", ""),
     )
 
-    image_provider = proj_settings.get("image_provider") or settings.IMAGE_PROVIDER
     img = ImageClient(
-        base_url=proj_settings.get("image_base_url") or settings.IMAGE_BASE_URL,
-        api_key=proj_settings.get("image_api_key") or settings.IMAGE_API_KEY,
-        model=proj_settings.get("image_model") or settings.IMAGE_MODEL,
-        provider=image_provider,
-        jimeng_ak=proj_settings.get("jimeng_access_key") or settings.JIMENG_ACCESS_KEY_ID,
-        jimeng_sk=proj_settings.get("jimeng_secret_key") or settings.JIMENG_SECRET_ACCESS_KEY,
+        base_url=cfg.get("image_base_url", ""),
+        api_key=cfg.get("image_api_key", ""),
+        model=cfg.get("image_model", ""),
+        provider=cfg.get("image_provider", "mock"),
+        jimeng_ak=cfg.get("jimeng_image_access_key", ""),
+        jimeng_sk=cfg.get("jimeng_image_secret_key", ""),
     )
 
     completed = _load_checkpoint(project)

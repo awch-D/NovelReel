@@ -10,7 +10,7 @@ from config import settings
 from clients.tts import TTSClient, MockTTSClient
 from clients.lipsync import LipSyncClient, MockLipSyncClient
 from utils.audio import merge_dialogues, get_audio_duration
-from utils.project_helpers import project_dir
+from utils.project_helpers import project_dir, get_effective_config, validate_path_segment
 
 logger = logging.getLogger(__name__)
 
@@ -18,28 +18,20 @@ router = APIRouter(prefix="/api", tags=["voice"])
 
 
 def _get_tts_client(project_id: str):
-    project = settings.PROJECTS_DIR / project_id
-    proj_settings = {}
-    sp = project / "settings.json"
-    if sp.exists():
-        proj_settings = json.loads(sp.read_text())
-    provider = proj_settings.get("image_provider", "mock")
+    cfg = get_effective_config(project_id)
+    provider = cfg.get("image_provider", "mock")
     if provider == "mock":
         return MockTTSClient()
-    tts_url = proj_settings.get("tts_base_url") or settings.TTS_BASE_URL
+    tts_url = cfg.get("tts_base_url", "")
     return TTSClient(tts_url)
 
 
 def _get_lipsync_client(project_id: str):
-    project = settings.PROJECTS_DIR / project_id
-    proj_settings = {}
-    sp = project / "settings.json"
-    if sp.exists():
-        proj_settings = json.loads(sp.read_text())
-    provider = proj_settings.get("image_provider", "mock")
+    cfg = get_effective_config(project_id)
+    provider = cfg.get("image_provider", "mock")
     if provider == "mock":
         return MockLipSyncClient()
-    url = proj_settings.get("sadtalker_base_url") or settings.SADTALKER_BASE_URL
+    url = cfg.get("sadtalker_base_url", "")
     return LipSyncClient(url)
 
 
@@ -104,6 +96,10 @@ async def update_voice_config(project_id: str, char_id: str, body: VoiceConfigUp
 
 @router.post("/projects/{project_id}/voice/characters/{char_id}/upload-ref")
 async def upload_ref_audio(project_id: str, char_id: str, file: UploadFile):
+    validate_path_segment(char_id, "char_id")
+    ext = (file.filename or "").rsplit(".", 1)[-1].lower() if file.filename else ""
+    if ext not in ("wav", "mp3", "flac", "ogg"):
+        raise HTTPException(400, "Only .wav/.mp3/.flac/.ogg files allowed")
     if not file.content_type or not file.content_type.startswith("audio/"):
         raise HTTPException(400, "Only audio files are allowed")
     content = await file.read()
@@ -152,6 +148,7 @@ def _extract_dialogues(project_id: str, episode: str) -> list[dict]:
 
 @router.get("/projects/{project_id}/voice/dialogues/{episode}")
 async def get_dialogues(project_id: str, episode: str):
+    validate_path_segment(episode, "episode")
     project_dir(project_id)
     lines = _extract_dialogues(project_id, episode)
     ep_dir = _episode_voice_dir(project_id, episode) / "lines"

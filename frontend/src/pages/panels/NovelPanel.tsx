@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
+import { toast } from "sonner";
 import { useProjectStore } from "@/stores/project";
 import { useProject } from "@/hooks/useProject";
 import { api } from "@/services/api";
@@ -131,7 +132,7 @@ export function NovelPanel() {
     try {
       await runPipeline();
     } catch (err) {
-      alert("启动失败: " + (err as Error).message);
+      toast.error("启动失败: " + (err as Error).message);
     } finally {
       setRunning(false);
     }

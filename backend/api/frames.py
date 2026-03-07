@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 from config import settings
 from prompts.script import build_sd_prompt
-from utils.project_helpers import project_dir, get_image_client
+from utils.project_helpers import project_dir, get_image_client, validate_path_segment
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +38,8 @@ def _frame_status(ep_dir: Path, shot_id: str, marks: dict) -> str:
 
 @router.get("/projects/{project_id}/frames/{episode}/{shot_id}")
 async def get_frame(project_id: str, episode: str, shot_id: str):
+    validate_path_segment(episode, "episode")
+    validate_path_segment(shot_id, "shot_id")
     project = project_dir(project_id)
     frame = project / "frames" / episode / f"{shot_id}.png"
     if not frame.exists():
@@ -47,6 +49,7 @@ async def get_frame(project_id: str, episode: str, shot_id: str):
 
 @router.get("/projects/{project_id}/frames-list/{episode}")
 async def get_frame_list(project_id: str, episode: str):
+    validate_path_segment(episode, "episode")
     project = project_dir(project_id)
     ep_dir = project / "frames" / episode
     ep_dir.mkdir(parents=True, exist_ok=True)
@@ -123,6 +126,8 @@ async def _regenerate_single_frame(project_id: str, episode: str, shot_id: str):
 
 @router.post("/projects/{project_id}/frames/{episode}/{shot_id}/regenerate")
 async def regenerate_frame(project_id: str, episode: str, shot_id: str, bg: BackgroundTasks):
+    validate_path_segment(episode, "episode")
+    validate_path_segment(shot_id, "shot_id")
     project_dir(project_id)  # validate exists
     bg.add_task(_regenerate_single_frame, project_id, episode, shot_id)
     return {"status": "generating"}
@@ -134,6 +139,7 @@ class BatchRegenerateRequest(BaseModel):
 
 @router.post("/projects/{project_id}/frames/{episode}/regenerate-batch")
 async def regenerate_batch(project_id: str, episode: str, bg: BackgroundTasks, body: BatchRegenerateRequest):
+    validate_path_segment(episode, "episode")
     project_dir(project_id)
     for sid in body.shot_ids:
         bg.add_task(_regenerate_single_frame, project_id, episode, sid)
@@ -142,6 +148,7 @@ async def regenerate_batch(project_id: str, episode: str, bg: BackgroundTasks, b
 
 @router.post("/projects/{project_id}/frames/{episode}/generate")
 async def generate_episode_frames(project_id: str, episode: str, bg: BackgroundTasks):
+    validate_path_segment(episode, "episode")
     project = project_dir(project_id)
     ep_dir = project / "frames" / episode
     ep_dir.mkdir(parents=True, exist_ok=True)
@@ -167,6 +174,8 @@ async def generate_episode_frames(project_id: str, episode: str, bg: BackgroundT
 
 @router.put("/projects/{project_id}/frames/{episode}/{shot_id}/mark")
 async def mark_frame(project_id: str, episode: str, shot_id: str):
+    validate_path_segment(episode, "episode")
+    validate_path_segment(shot_id, "shot_id")
     project = project_dir(project_id)
     ep_dir = project / "frames" / episode
     ep_dir.mkdir(parents=True, exist_ok=True)

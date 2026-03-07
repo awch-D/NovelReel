@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from config import settings
 from utils.project_helpers import (
     project_dir, get_image_client, scan_candidates, scan_views,
+    validate_path_segment,
     CHARACTER_VIEW_KEYS, SCENE_VIEW_KEYS,
     CHARACTER_VIEW_PROMPTS, SCENE_VIEW_PROMPTS,
 )
@@ -148,6 +149,7 @@ async def select_asset(project_id: str, asset_type: str, asset_id: str, body: Se
 
 @router.get("/projects/{project_id}/assets/{asset_type}/{asset_id}/views/{filename}")
 async def get_asset_view_file(project_id: str, asset_type: str, asset_id: str, filename: str):
+    validate_path_segment(filename, "filename")
     project = project_dir(project_id)
     file_path = project / "assets" / asset_type / asset_id / "views" / filename
     if not file_path.resolve().is_relative_to(project.resolve()):
@@ -159,6 +161,7 @@ async def get_asset_view_file(project_id: str, asset_type: str, asset_id: str, f
 
 @router.get("/projects/{project_id}/assets/{asset_type}/{asset_id}/{filename}")
 async def get_asset_file(project_id: str, asset_type: str, asset_id: str, filename: str):
+    validate_path_segment(filename, "filename")
     project = project_dir(project_id)
     file_path = project / "assets" / asset_type / asset_id / filename
     if not file_path.resolve().is_relative_to(project.resolve()):
@@ -315,6 +318,10 @@ async def regenerate_prop(project_id: str, prop_id: str):
 async def upload_candidate(project_id: str, asset_type: str, asset_id: str, file: UploadFile):
     if asset_type not in ("characters", "scenes", "props"):
         raise HTTPException(400, "Invalid asset type")
+    validate_path_segment(asset_id, "asset_id")
+    ext = (file.filename or "").rsplit(".", 1)[-1].lower() if file.filename else ""
+    if ext not in ("png", "jpg", "jpeg", "webp"):
+        raise HTTPException(400, "Only .png/.jpg/.jpeg/.webp files allowed")
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(400, "Only image files are allowed")
     content = await file.read()
@@ -380,6 +387,7 @@ async def activate_version(project_id: str, asset_type: str, asset_id: str, vers
 
 @router.get("/projects/{project_id}/assets/{asset_type}/{asset_id}/library/{filename}")
 async def get_library_file(project_id: str, asset_type: str, asset_id: str, filename: str):
+    validate_path_segment(filename, "filename")
     project = project_dir(project_id)
     file_path = project / "assets" / asset_type / asset_id / "library" / filename
     if not file_path.resolve().is_relative_to(project.resolve()):

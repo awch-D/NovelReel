@@ -5,10 +5,10 @@ from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from config import settings
-from utils.project_helpers import project_dir
+from utils.project_helpers import project_dir, validate_path_segment
 from utils.ffmpeg import (
     image_to_video, overlay_lipsync, mix_audio, apply_vfx,
     concat_clips, mix_bgm, burn_subtitles, generate_srt,
@@ -34,9 +34,9 @@ def _load_synthesis_settings(project_id: str) -> dict:
 
 class SynthesisSettingsUpdate(BaseModel):
     bgm: str | None = None
-    bgm_volume: float = 0.15
+    bgm_volume: float = Field(default=0.15, ge=0, le=1)
     subtitles: bool = True
-    font_size: int = 24
+    font_size: int = Field(default=24, ge=12, le=72)
 
 
 @router.put("/projects/{project_id}/synthesis/settings")
@@ -223,6 +223,7 @@ async def preview_episode(project_id: str, episode: str):
 
 @router.get("/projects/{project_id}/synthesis/output/{filename}")
 async def get_output_file(project_id: str, filename: str):
+    validate_path_segment(filename, "filename")
     syn_dir = _synthesis_dir(project_id)
     file_path = syn_dir / filename
     if not file_path.resolve().is_relative_to(syn_dir.resolve()):
@@ -235,6 +236,9 @@ async def get_output_file(project_id: str, filename: str):
 
 @router.post("/projects/{project_id}/synthesis/bgm/upload")
 async def upload_bgm(project_id: str, file: UploadFile):
+    ext = (file.filename or "").rsplit(".", 1)[-1].lower() if file.filename else ""
+    if ext not in ("wav", "mp3", "flac", "ogg"):
+        raise HTTPException(400, "Only .wav/.mp3/.flac/.ogg files allowed")
     if not file.content_type or not file.content_type.startswith("audio/"):
         raise HTTPException(400, "Only audio files allowed")
     content = await file.read()

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { toast } from "sonner";
 import { useProjectStore } from "@/stores/project";
 import { api } from "@/services/api";
 import { EpisodeTabs } from "@/components/shared/EpisodeTabs";
@@ -89,6 +90,8 @@ export function FramesPanel() {
     try {
       await api.generateEpisodeFrames(pid, episodeDir);
       setTimeout(fetchFrameList, 1000);
+    } catch (err) {
+      toast.error("生成分镜失败: " + (err as Error).message);
     } finally {
       setGenerating(false);
     }
@@ -101,6 +104,8 @@ export function FramesPanel() {
       await api.regenerateFrameBatch(pid, episodeDir, Array.from(selected));
       setSelected(new Set());
       setTimeout(fetchFrameList, 1000);
+    } catch (err) {
+      toast.error("重新生成失败: " + (err as Error).message);
     } finally {
       setGenerating(false);
     }

@@ -1,5 +1,6 @@
 """共享的项目工具函数和常量"""
 import json
+import re
 from pathlib import Path
 
 from fastapi import HTTPException
@@ -7,29 +8,100 @@ from fastapi import HTTPException
 from config import settings
 from clients.comfyui import ImageClient
 
+_PROJECT_ID_RE = re.compile(r"^[a-f0-9]{12}$")
+
+SYSTEM_SETTINGS_FILE = Path(__file__).parent.parent / "system_settings.json"
+
+# 需要解密的字段
+_SECRET_FIELDS = {
+    "llm_api_key", "image_api_key",
+    "jimeng_image_access_key", "jimeng_image_secret_key",
+    "jimeng_video_access_key", "jimeng_video_secret_key",
+}
+
+# system_settings.json 字段 → config.py (.env) 字段映射
+_SYS_TO_ENV = {
+    "llm_base_url": "LLM_BASE_URL",
+    "llm_api_key": "LLM_API_KEY",
+    "llm_model": "LLM_MODEL",
+    "image_provider": "IMAGE_PROVIDER",
+    "image_base_url": "IMAGE_BASE_URL",
+    "image_api_key": "IMAGE_API_KEY",
+    "image_model": "IMAGE_MODEL",
+    "jimeng_image_access_key": "JIMENG_ACCESS_KEY_ID",
+    "jimeng_image_secret_key": "JIMENG_SECRET_ACCESS_KEY",
+    "tts_base_url": "TTS_BASE_URL",
+    "sadtalker_base_url": "SADTALKER_BASE_URL",
+}
+
+
+def _load_system_settings() -> dict:
+    if SYSTEM_SETTINGS_FILE.exists():
+        try:
+            data = json.loads(SYSTEM_SETTINGS_FILE.read_text("utf-8"))
+            # 解密密钥字段
+            from utils.crypto import decrypt
+            for key in _SECRET_FIELDS:
+                if key in data and data[key]:
+                    data[key] = decrypt(data[key])
+            return data
+        except Exception:
+            pass
+    return {}
+
+
+def get_effective_config(project_id: str | None = None) -> dict:
+    """三层配置合并：项目 settings.json → system_settings.json → .env 默认值"""
+    # Layer 3: .env defaults (lowest priority)
+    result = {}
+    for sys_key, env_key in _SYS_TO_ENV.items():
+        result[sys_key] = getattr(settings, env_key, "")
+
+    # Layer 2: system_settings.json
+    sys_cfg = _load_system_settings()
+    for key, val in sys_cfg.items():
+        if val:  # 只覆盖非空值
+            result[key] = val
+
+    # Layer 1: project settings.json (highest priority)
+    if project_id:
+        settings_path = settings.PROJECTS_DIR / project_id / "settings.json"
+        if settings_path.exists():
+            try:
+                proj = json.loads(settings_path.read_text())
+                for key, val in proj.items():
+                    if val:
+                        result[key] = val
+            except Exception:
+                pass
+
+    return result
+
 
 def project_dir(project_id: str) -> Path:
+    if not _PROJECT_ID_RE.match(project_id):
+        raise HTTPException(404, "Project not found")
     p = settings.PROJECTS_DIR / project_id
     if not p.exists():
         raise HTTPException(404, "Project not found")
     return p
 
 
-def get_image_client(project_id: str | None = None) -> ImageClient:
-    proj_settings = {}
-    if project_id:
-        settings_path = settings.PROJECTS_DIR / project_id / "settings.json"
-        if settings_path.exists():
-            proj_settings = json.loads(settings_path.read_text())
+def validate_path_segment(segment: str, name: str = "path segment"):
+    """校验路径片段不含目录遍历字符"""
+    if not segment or ".." in segment or "/" in segment or "\\" in segment or "\x00" in segment:
+        raise HTTPException(400, f"Invalid {name}")
 
-    image_provider = proj_settings.get("image_provider") or settings.IMAGE_PROVIDER
+
+def get_image_client(project_id: str | None = None) -> ImageClient:
+    cfg = get_effective_config(project_id)
     return ImageClient(
-        base_url=proj_settings.get("image_base_url") or settings.IMAGE_BASE_URL,
-        api_key=proj_settings.get("image_api_key") or settings.IMAGE_API_KEY,
-        model=proj_settings.get("image_model") or settings.IMAGE_MODEL,
-        provider=image_provider,
-        jimeng_ak=proj_settings.get("jimeng_access_key") or settings.JIMENG_ACCESS_KEY_ID,
-        jimeng_sk=proj_settings.get("jimeng_secret_key") or settings.JIMENG_SECRET_ACCESS_KEY,
+        base_url=cfg.get("image_base_url", ""),
+        api_key=cfg.get("image_api_key", ""),
+        model=cfg.get("image_model", ""),
+        provider=cfg.get("image_provider", "mock"),
+        jimeng_ak=cfg.get("jimeng_image_access_key", ""),
+        jimeng_sk=cfg.get("jimeng_image_secret_key", ""),
     )
 
 

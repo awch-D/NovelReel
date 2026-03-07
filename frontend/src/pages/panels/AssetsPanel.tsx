@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
+import { toast } from "sonner";
 import { useProjectStore } from "@/stores/project";
 import { cn } from "@/lib/utils";
 import { Lock, Unlock, RefreshCw, User, MapPin, Loader2, Check, X, ZoomIn, Images, ChevronLeft, ChevronRight, Upload, Package, History } from "lucide-react";
@@ -48,15 +49,18 @@ export function AssetsPanel() {
 
   const handleGenerateChar = useCallback(async (id: string) => {
     if (!projectId) return;
-    // 标记 generating 状态由 CharacterCard 内部管理
-    const { image } = await api.regenerateCharacter(projectId, id);
-    setCharacters(
-      characters.map((c) =>
-        c.id === id
-          ? { ...c, candidates: [...(c.candidates || []), image] }
-          : c
-      )
-    );
+    try {
+      const { image } = await api.regenerateCharacter(projectId, id);
+      setCharacters(
+        characters.map((c) =>
+          c.id === id
+            ? { ...c, candidates: [...(c.candidates || []), image] }
+            : c
+        )
+      );
+    } catch (err) {
+      toast.error("生成角色失败: " + (err as Error).message);
+    }
   }, [projectId, characters, setCharacters]);
 
   const handleLockChar = useCallback(async (id: string) => {
@@ -81,14 +85,18 @@ export function AssetsPanel() {
 
   const handleGenerateScene = useCallback(async (id: string) => {
     if (!projectId) return;
-    const { image } = await api.regenerateScene(projectId, id);
-    setSceneAssets(
-      sceneAssets.map((s) =>
-        s.id === id
-          ? { ...s, candidates: [...(s.candidates || []), image] }
-          : s
-      )
-    );
+    try {
+      const { image } = await api.regenerateScene(projectId, id);
+      setSceneAssets(
+        sceneAssets.map((s) =>
+          s.id === id
+            ? { ...s, candidates: [...(s.candidates || []), image] }
+            : s
+        )
+      );
+    } catch (err) {
+      toast.error("生成场景失败: " + (err as Error).message);
+    }
   }, [projectId, sceneAssets, setSceneAssets]);
 
   const handleLockScene = useCallback(async (id: string) => {
@@ -129,8 +137,12 @@ export function AssetsPanel() {
   // Props handlers
   const handleGenerateProp = useCallback(async (id: string) => {
     if (!projectId) return;
-    const { image } = await api.regenerateProp(projectId, id);
-    setProps(props.map((p) => p.id === id ? { ...p, candidates: [...(p.candidates || []), image] } : p));
+    try {
+      const { image } = await api.regenerateProp(projectId, id);
+      setProps(props.map((p) => p.id === id ? { ...p, candidates: [...(p.candidates || []), image] } : p));
+    } catch (err) {
+      toast.error("生成道具失败: " + (err as Error).message);
+    }
   }, [projectId, props, setProps]);
 
   const handleLockProp = useCallback(async (id: string) => {
@@ -153,13 +165,17 @@ export function AssetsPanel() {
   // Upload handler
   const handleUpload = useCallback(async (type: string, id: string, file: File) => {
     if (!projectId) return;
-    const { image } = await api.uploadCandidate(projectId, type, id, file);
-    if (type === "characters") {
-      setCharacters(characters.map(c => c.id === id ? { ...c, candidates: [...(c.candidates || []), image] } : c));
-    } else if (type === "scenes") {
-      setSceneAssets(sceneAssets.map(s => s.id === id ? { ...s, candidates: [...(s.candidates || []), image] } : s));
-    } else {
-      setProps(props.map(p => p.id === id ? { ...p, candidates: [...(p.candidates || []), image] } : p));
+    try {
+      const { image } = await api.uploadCandidate(projectId, type, id, file);
+      if (type === "characters") {
+        setCharacters(characters.map(c => c.id === id ? { ...c, candidates: [...(c.candidates || []), image] } : c));
+      } else if (type === "scenes") {
+        setSceneAssets(sceneAssets.map(s => s.id === id ? { ...s, candidates: [...(s.candidates || []), image] } : s));
+      } else {
+        setProps(props.map(p => p.id === id ? { ...p, candidates: [...(p.candidates || []), image] } : p));
+      }
+    } catch (err) {
+      toast.error("上传失败: " + (err as Error).message);
     }
   }, [projectId, characters, sceneAssets, props, setCharacters, setSceneAssets, setProps]);
 

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { toast } from "sonner";
 import { useProjectStore } from "@/stores/project";
 import { api } from "@/services/api";
 import type { VoiceProfile, DialogueLine } from "@/types";
@@ -68,9 +69,13 @@ export function VoicePanel() {
     input.onchange = async () => {
       const file = input.files?.[0];
       if (!file || !pid) return;
-      await api.uploadRefAudio(pid, charId, file);
-      const updated = await api.getVoiceCharacters(pid);
-      setVoices(updated);
+      try {
+        await api.uploadRefAudio(pid, charId, file);
+        const updated = await api.getVoiceCharacters(pid);
+        setVoices(updated);
+      } catch (err) {
+        toast.error("上传参考音频失败: " + (err as Error).message);
+      }
     };
     input.click();
   };
@@ -82,6 +87,8 @@ export function VoicePanel() {
       await api.generateTTS(pid, lineId);
       const updated = await api.getDialogues(pid, currentEp);
       setDialogues(updated);
+    } catch (err) {
+      toast.error("生成语音失败: " + (err as Error).message);
     } finally {
       setGenerating((s) => { const n = new Set(s); n.delete(lineId); return n; });
     }
@@ -89,7 +96,12 @@ export function VoicePanel() {
 
   const handleGenerateAll = async () => {
     if (!pid || !currentEp) return;
-    await api.generateAllTTS(pid, currentEp);
+    try {
+      await api.generateAllTTS(pid, currentEp);
+    } catch (err) {
+      toast.error("批量生成语音失败: " + (err as Error).message);
+      return;
+    }
     if (pollRef.current) clearInterval(pollRef.current);
     pollRef.current = setInterval(async () => {
       const updated = await api.getDialogues(pid, currentEp);
@@ -104,7 +116,11 @@ export function VoicePanel() {
 
   const handleMerge = async () => {
     if (!pid || !currentEp) return;
-    await api.mergeDialogues(pid, currentEp);
+    try {
+      await api.mergeDialogues(pid, currentEp);
+    } catch (err) {
+      toast.error("合并对白失败: " + (err as Error).message);
+    }
   };
 
   const handleTestTTS = async () => {

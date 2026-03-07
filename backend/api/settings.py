@@ -10,12 +10,23 @@ import urllib.parse
 from datetime import datetime, timezone
 from pathlib import Path
 
+from typing import Literal
+
 from fastapi import APIRouter
 from pydantic import BaseModel
+
+from utils.crypto import encrypt, decrypt
 
 router = APIRouter(prefix="/api", tags=["settings"])
 
 SETTINGS_FILE = Path(__file__).parent.parent / "system_settings.json"
+
+# 需要加密的字段名（以 _key 结尾的密钥字段）
+_SECRET_FIELDS = {
+    "llm_api_key", "image_api_key",
+    "jimeng_image_access_key", "jimeng_image_secret_key",
+    "jimeng_video_access_key", "jimeng_video_secret_key",
+}
 
 # 即梦 API 常量
 _JIMENG_HOST = "visual.volcengineapi.com"
@@ -35,7 +46,7 @@ class SystemSettings(BaseModel):
     llm_model: str = ""
 
     # 图片生成
-    image_provider: str = "mock"
+    image_provider: Literal["mock", "api", "jimeng"] = "mock"
     image_base_url: str = ""
     image_api_key: str = ""
     image_model: str = ""
@@ -43,7 +54,7 @@ class SystemSettings(BaseModel):
     jimeng_image_secret_key: str = ""
 
     # 视频生成
-    video_provider: str = "none"
+    video_provider: Literal["none", "jimeng"] = "none"
     jimeng_video_access_key: str = ""
     jimeng_video_secret_key: str = ""
 
@@ -51,26 +62,63 @@ class SystemSettings(BaseModel):
 def _load() -> SystemSettings:
     if SETTINGS_FILE.exists():
         data = json.loads(SETTINGS_FILE.read_text("utf-8"))
+        # 解密密钥字段
+        for key in _SECRET_FIELDS:
+            if key in data and data[key]:
+                data[key] = decrypt(data[key])
         return SystemSettings(**data)
     return SystemSettings()
 
 
 def _save(s: SystemSettings):
+    data = s.model_dump()
+    # 加密密钥字段
+    for key in _SECRET_FIELDS:
+        if key in data and data[key]:
+            data[key] = encrypt(data[key])
     SETTINGS_FILE.write_text(
-        json.dumps(s.model_dump(), ensure_ascii=False, indent=2),
+        json.dumps(data, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
 
 
+def _mask_secret(value: str) -> str:
+    """掩码：保留前 3 字符和后 2 字符"""
+    if not value:
+        return ""
+    if len(value) <= 5:
+        return "****"
+    return value[:3] + "****" + value[-2:]
+
+
 @router.get("/settings")
 def get_settings():
-    return _load().model_dump()
+    data = _load().model_dump()
+    # 返回掩码值
+    for key in _SECRET_FIELDS:
+        if key in data and data[key]:
+            data[key] = _mask_secret(data[key])
+    return data
 
 
 @router.put("/settings")
 def update_settings(body: SystemSettings):
-    _save(body)
-    return body.model_dump()
+    current = _load()
+    new_data = body.model_dump()
+    # 含 **** 的值保留原值（前端未修改）
+    cur_data = current.model_dump()
+    for key in _SECRET_FIELDS:
+        val = new_data.get(key, "")
+        if "****" in val:
+            new_data[key] = cur_data.get(key, "")
+    merged = SystemSettings(**new_data)
+    _save(merged)
+    # 返回掩码值
+    result = merged.model_dump()
+    for key in _SECRET_FIELDS:
+        if key in result and result[key]:
+            result[key] = _mask_secret(result[key])
+    return result
 
 
 # ---- 即梦 HMAC 签名 ----

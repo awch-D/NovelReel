@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { useProjectStore } from "@/stores/project";
 import { api } from "@/services/api";
 import { Button } from "@/components/ui/button";
@@ -72,7 +73,7 @@ export function ProjectList() {
       setFile(null);
       navigate(`/projects/${result.project_id}`);
     } catch (err) {
-      alert("创建失败: " + (err as Error).message);
+      toast.error("创建失败: " + (err as Error).message);
     } finally {
       setCreating(false);
     }
